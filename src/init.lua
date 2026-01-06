@@ -1,3 +1,5 @@
+--!nocheck
+
 local inputHandler = {
     Loaded = false,
     GlobalActionTable = {},
@@ -7,9 +9,10 @@ local inputHandler = {
 
 local UserInputService = game:GetService("UserInputService")
 
-local ActionObject = require("@self/ActionObject")
+local actionObjectModule = require("@self/ActionObject")
+local types = require("@self/Types") ---@module types
 
-local serializedInputObjectTemplate = {
+local serializedInputObjectTemplate: types.SerialInputObject = {
     IsKeyDown = false,
     IsChanging = false,
     IsKeyCode = false,
@@ -49,7 +52,7 @@ function inputHandler:IsKeyDown(inputObject: InputObject)
     return isKeyDown, isChanging
 end
 
-function inputHandler:SerializeInputObject(_inputObject: InputObject, gameProcessedEvent: boolean)
+function inputHandler:SerializeInputObject(_inputObject: InputObject, gameProcessedEvent: boolean) : types.SerialInputObject
     local inputObject = table.clone(serializedInputObjectTemplate)
     local isKeyDown, isChanging = self:IsKeyDown(_inputObject)
     local globalInput, isPureKeyCode = self:GlobalizeInput(_inputObject)
@@ -74,7 +77,7 @@ function inputHandler:SerializeInputObject(_inputObject: InputObject, gameProces
     return inputObject
 end
 
-function inputHandler:CheckActionObjectparameters(inputObject: table, actionObject: table) 
+function inputHandler:CheckActionObjectparameters(inputObject: types.SerialInputObject, actionObject: table)
     if actionObject.AbideGameProcessed and inputObject.GameProcessedEvent then
         return false
     end
@@ -87,7 +90,7 @@ function inputHandler:CheckActionObjectparameters(inputObject: table, actionObje
 end
 
 function inputHandler:InputChanged(inputObject: InputObject, gameProcessedEvent: boolean)
-    inputObject = self:SerializeInputObject(inputObject, gameProcessedEvent)
+    inputObject = self:SerializeInputObject(inputObject, gameProcessedEvent) :: types.SerialInputObject
 
     local actionKeys = self:GetActionKeysByKeyCode(inputObject.GlobalInput)
     if not actionKeys then
@@ -136,7 +139,7 @@ end
 function inputHandler:AddActionObjectToLookup(actionObject)
     local actionKey = actionObject.ActionKey
 
-    local keycodes = actionObject.Keycodes
+    local keyCodes = actionObject.KeyCodes
     local shouldNestedCheck = false
 
     local globalLookupValue = self:GetActionObject(actionKey)
@@ -159,7 +162,7 @@ function inputHandler:AddActionObjectToLookup(actionObject)
 
     self.ReverseGlobalActionTable[actionObject] = actionKey
 
-    self:AddReverseLookupKeys(actionKey, shouldNestedCheck, keycodes)
+    self:AddReverseLookupKeys(actionKey, shouldNestedCheck, keyCodes)
 end
 
 function inputHandler:ConnectEvents()
@@ -174,8 +177,8 @@ function inputHandler:ConnectEvents()
     end)
 end
 
-function inputHandler:RegisterAction(_ActionData: table)
-    local actionObject = ActionObject.New(_ActionData)
+function inputHandler:RegisterAction(_ActionData: types.UserActionData)
+    local actionObject: types.ActionData = actionObjectModule.New(_ActionData)
 
     --// HACK: Makes array of bools keys and then makes their value true.
     --// Looks like: {[true] = true, [false] = true}
@@ -197,7 +200,6 @@ function inputHandler:Init()
     end
 
     self:ConnectEvents()
-
     self.Loaded = true
 end
 

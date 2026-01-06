@@ -1,0 +1,21 @@
+
+{
+    "name": "Aseta-Input",
+    "tree": {
+      "$className": "DataModel",
+  
+      "ReplicatedStorage": {
+        "InputHandler": {
+          "$path": "src/init.lua",
+  
+          "ActionObject": {
+            "$path": "src/ActionObject.lua"
+          },
+  
+          "Types": {
+            "$path": "src/Types.lua"
+          }
+        }
+      }
+    }
+  }
