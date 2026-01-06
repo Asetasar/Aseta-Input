@@ -1,6 +1,6 @@
 [package]
-name = "aaa/aseta-input"
-version = "0.1.0"
+name = "asetasar/aseta-input"
+version = "0.1.1"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
 
