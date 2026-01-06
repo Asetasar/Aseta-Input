@@ -3,9 +3,11 @@ local actionObjectModule = {}
 local actionObjectHolder = {}
 actionObjectHolder.__index = actionObjectHolder
 
-local ActionDataTemplate = {
+local types = require(script.Parent.Types) ---@module types
+
+local ActionDataTemplate: types.ActionData = {
     ActionKey = "",
-    Keycodes = {},
+    KeyCodes = {},
     AbideGameProcessed = true,
 
     TriggerByChanged = false,
@@ -19,10 +21,10 @@ local ActionDataTemplate = {
 
     KeyToPressTimestamp = {},
     KeysPressedInOrder = {},
-    CallbackFunction = function() end
+    CallbackFunctions = {}
 }
 
-function actionObjectHolder:GenerateReturnObject(inputObject: table)
+function actionObjectHolder:GenerateReturnObject(inputObject: types.SerialInputObject)
     local returnObject = {
         PressCount = self.PressCounter,
         MainSelf = self,
@@ -40,7 +42,7 @@ function actionObjectHolder:GenerateReturnObject(inputObject: table)
 end
 
 function actionObjectHolder:AreKeysPressedInOrder()
-	local keyOrder = self.Keycodes
+	local keyOrder = self.KeyCodes
 	local keyTimestamps = self.KeyToPressTimestamp
 
 	local previousPressedTimestamp = 0
@@ -63,7 +65,7 @@ function actionObjectHolder:AreKeysPressedInOrder()
 	return true
 end
 
-function actionObjectHolder:Trigger(inputObject: table)
+function actionObjectHolder:Trigger(inputObject: types.SerialInputObject)
     --// Set timestamp of when key is down if not make it -1
     local keyCode = inputObject.GlobalInput
     self.KeyToPressTimestamp[keyCode] = inputObject.IsKeyDown and os.clock() or -1
@@ -99,14 +101,50 @@ function actionObjectHolder:Trigger(inputObject: table)
         self.PressCounter += 1
         --// For return object to check if player if player is still holding key from other check
 
-        self.CallbackFunction(self:GenerateReturnObject(inputObject))
+        self:CallCallbackFunctions(self:GenerateReturnObject(inputObject))
     end
 end
 
-function actionObjectModule:ValidateDataAndMerge(targetDataTemplate: table, validatedDataTable: table)
+--// Funny :P
+function actionObjectHolder:CallCallbackFunctions(...)
+    for _, callbackFunction in self.CallbackFunctions do
+        pcall(callbackFunction, ...)
+    end
+end
+
+function actionObjectHolder:BindFunction(callbackFunction: () -> (), priority: number)
+    local callbackFunctions = self.CallbackFunctions
+
+    if not priority then
+        table.insert(callbackFunctions, callbackFunction)
+
+        return
+    end
+
+    local storedValue = callbackFunctions[priority]
+
+    if not storedValue then 
+        table.insert(self.CallbackFunctions, priority, callbackFunction)
+
+        return
+    end
+
+    local storedTypeOf = typeof(storedValue)
+
+    if storedTypeOf == "function" then
+        callbackFunctions[priority] = {storedValue, callbackFunction}
+    else
+        table.insert(storedValue, callbackFunction)
+    end
+end
+
+function actionObjectModule:ValidateDataAndMerge(targetDataTemplate: types.ActionData, validatedDataTable: types.UserActionData)
     for key, value in validatedDataTable do
+        print(targetDataTemplate)
         local correctTypeof = typeof(targetDataTemplate[key])
         local recvTypeof = typeof(value)
+    
+        print(correctTypeof, key, value)
 
         if correctTypeof ~= recvTypeof and recvTypeof ~= nil then
             error(`[{key}] {correctTypeof} expected, got {recvTypeof}.`)
@@ -116,7 +154,7 @@ function actionObjectModule:ValidateDataAndMerge(targetDataTemplate: table, vali
     end
 end
 
-function actionObjectModule.New(_ActionData)
+function actionObjectModule.New(_ActionData: types.UserActionData) : types.ActionData
     local actionObject = setmetatable(
         table.clone(ActionDataTemplate),
         actionObjectHolder
@@ -124,11 +162,11 @@ function actionObjectModule.New(_ActionData)
 
     actionObjectModule:ValidateDataAndMerge(actionObject, _ActionData)
 
-    if #actionObject.Keycodes == 0 then
+    if #actionObject.KeyCodes == 0 then
         error("No keycodes provided.")
     end
 
-    actionObject.IsSingleKey = #actionObject.Keycodes == 1
+    actionObject.IsSingleKey = #actionObject.KeyCodes == 1
 
     return actionObject
 end
