@@ -27,15 +27,16 @@ local ActionDataTemplate: types.ActionData = {
 function actionObjectHolder:GenerateReturnObject(inputObject: types.SerialInputObject)
     local returnObject = {
         PressCount = self.PressCounter,
-        MainSelf = self,
+        ActionObject = self,
+        InputObject = inputObject
     }
 
     function returnObject:IsSameKeyPress()
-        return self.PressCount == self.MainSelf.PressCounter
+        return self.PressCount == self.ActionObject.PressCounter
     end
 
     function returnObject:IsStillHolding()
-        return self:IsSameKeyPress() and self.MainSelf.IsKeyDown
+        return self:IsSameKeyPress() and self.ActionObject.IsKeyDown
     end
 
     return returnObject
@@ -90,7 +91,7 @@ function actionObjectHolder:Trigger(inputObject: types.SerialInputObject)
         self.PressCounter += 1
         --// For return object to check if player if player is still holding key from other check
 
-        self.CallbackFunction(self:GenerateReturnObject(inputObject))
+        self:CallCallbackFunctions(self:GenerateReturnObject(inputObject))
 
         if inputObject.IsKeyDown and self.TargetPressedState[false] then
             return
