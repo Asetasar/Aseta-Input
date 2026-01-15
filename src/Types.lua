@@ -18,12 +18,13 @@ export type ActionData = {
 
     TargetPressedState: {boolean},
 
-    PressCounter: number,
-    IsKeyDown: boolean,
-    IsSingleKey: boolean,
+    _PressCounter: number,
+    _IsKeyDown: boolean,
+    _IsSingleKey: boolean,
+    _LastKeyPressed: boolean,
 
-    KeyToPressTimestamp: {[Enum.KeyCode]: number},
-    CallbackFunctions: (() -> ()) | {() -> ()}
+    _KeyToPressTimestamp: {[Enum.KeyCode]: number},
+    _CallbackFunctions: (() -> ()) | {() -> ()}
 }
 
 export type SerializedInputObject = {
