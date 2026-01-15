@@ -18,6 +18,7 @@ local ActionDataTemplate: types.ActionData = {
 
     _IsKeyDown = false,
     _IsSingleKey = true,
+    _LastKeyPressed = false,
 
     _KeyToPressTimestamp = {},
     _CallbackFunctions = {}
@@ -64,27 +65,37 @@ function actionObjectHolder:AreKeysPressedInOrder()
 end
 
 function actionObjectHolder:Trigger(inputObject: types.SerializedInputObject)
-    --// Set timestamp of when key is down if not make it -1
+    if self._IsSingleKey then
+        self._IsKeyDown = inputObject._IsKeyDown
+
+        if self.TargetPressedState[inputObject._IsKeyDown] then
+            self._PressCounter += 1
+        end
+
+        self:CallCallbackFunctions(self:GenerateReturnObject(inputObject))
+
+        return
+    end
+
+    --// NOT one keypress logic
+
     local triggerInput = inputObject.TriggerInput
+    --// Set timestamp of when key is down if not make it -1
     self._KeyToPressTimestamp[triggerInput] = inputObject.IsKeyDown and os.clock() or -1
 
-    if not self._IsSingleKey and not self.LastKeyPressed then
+    if not self._LastKeyPressed then
         --// If all keys are pressed in order of timestamps then LastKeyPressed == true\
         --// Cant use tenary as I only want to set it to true so it doesnt get set to false when changes happen
         --// I need to know that everything was pressed, because last key can be triggered if the state is up/down
         if self:AreKeysPressedInOrder() then
             self._IsKeyDown = true
-            self.LastKeyPressed = true
+            self._LastKeyPressed = true
         else
             self._IsKeyDown = false
         end
-    else
-        self._IsKeyDown = inputObject._IsKeyDown
-        --// Will set existing true to true when code above doesn't get ran as it already detected full press.
-        self.LastKeyPressed = true
     end
 
-    if self.TargetPressedState[inputObject._IsKeyDown] and self.LastKeyPressed then
+    if self.TargetPressedState[inputObject.IsKeyDown] and self._LastKeyPressed then
         self._PressCounter += 1
         --// For return object to check if player if player is still holding key from other check
 
@@ -94,21 +105,25 @@ function actionObjectHolder:Trigger(inputObject: types.SerializedInputObject)
             return
         end
 
-        self.LastKeyPressed = false
-    elseif self._IsSingleKey and self.TargetPressedState[inputObject.IsKeyDown] then
-        self._PressCounter += 1
-        --// For return object to check if player if player is still holding key from other check
-
-        self:CallCallbackFunctions(self:GenerateReturnObject(inputObject))
+        self._LastKeyPressed = false
     end
 end
 
 --// Funny :P
 function actionObjectHolder:CallCallbackFunctions(...)
-    for _, callbackFunction in self._CallbackFunctions do
-        pcall(callbackFunction, ...)
+    for _, callbackFunctions in self._CallbackFunctions do
+        if typeof(callbackFunctions) == "table" then
+            for _, callbackFunction in callbackFunctions do
+                callbackFunction(...)
+            end
+
+            continue
+        end
+
+        callbackFunctions(...)
     end
 end
+
 
 function actionObjectHolder:BindFunction(callbackFunction: () -> (), priority: number)
     local callbackFunctions = self._CallbackFunctions
