@@ -3,40 +3,37 @@ local actionObjectModule = {}
 local actionObjectHolder = {}
 actionObjectHolder.__index = actionObjectHolder
 
-local types = require(script.Parent.Types) ---@module types
+local types = require(script.Parent.Types) ---@module Types
 
 local ActionDataTemplate: types.ActionData = {
     ActionKey = "",
     KeyCodes = {},
-    AbideGameProcessed = true,
+    RespectGameProcessed = true,
 
-    TriggerByChanged = false,
+    SignalByChanged = false,
 
     AllowSameActionKey = true,
     TargetPressedState = {true, false}, --// Target IsKeyDown = true, false
-    PressCounter = 0,
+    _PressCounter = 0,
 
-    IsKeyDown = false,
-    IsSingleKey = true,
+    _IsKeyDown = false,
+    _IsSingleKey = true,
 
-    KeyToPressTimestamp = {},
-    KeysPressedInOrder = {},
-    CallbackFunctions = {}
+    _KeyToPressTimestamp = {},
+    _CallbackFunctions = {}
 }
 
-function actionObjectHolder:GenerateReturnObject(inputObject: types.SerialInputObject)
-    local returnObject = {
-        PressCount = self.PressCounter,
-        ActionObject = self,
-        InputObject = inputObject
-    }
+function actionObjectHolder:GenerateReturnObject(inputObject: types.SerializedInputObject) : types.ReturnInputObject
+    local returnObject: types.ReturnInputObject = table.clone(inputObject)
+    returnObject.CurrentPressCount = self._PressCounter
+    returnObject.ActionObject = self
 
     function returnObject:IsSameKeyPress()
-        return self.PressCount == self.ActionObject.PressCounter
+        return self.CurrentPressCount == self.ActionObject._PressCounter
     end
 
     function returnObject:IsStillHolding()
-        return self:IsSameKeyPress() and self.ActionObject.IsKeyDown
+        return self:IsSameKeyPress() and self.ActionObject._IsKeyDown
     end
 
     return returnObject
@@ -44,7 +41,7 @@ end
 
 function actionObjectHolder:AreKeysPressedInOrder()
 	local keyOrder = self.KeyCodes
-	local keyTimestamps = self.KeyToPressTimestamp
+	local keyTimestamps = self._KeyToPressTimestamp
 
 	local previousPressedTimestamp = 0
 
@@ -66,29 +63,29 @@ function actionObjectHolder:AreKeysPressedInOrder()
 	return true
 end
 
-function actionObjectHolder:Trigger(inputObject: types.SerialInputObject)
+function actionObjectHolder:Trigger(inputObject: types.SerializedInputObject)
     --// Set timestamp of when key is down if not make it -1
-    local keyCode = inputObject.GlobalInput
-    self.KeyToPressTimestamp[keyCode] = inputObject.IsKeyDown and os.clock() or -1
+    local triggerInput = inputObject.TriggerInput
+    self._KeyToPressTimestamp[triggerInput] = inputObject.IsKeyDown and os.clock() or -1
 
-    if not self.IsSingleKey and not self.LastKeyPressed then
+    if not self._IsSingleKey and not self.LastKeyPressed then
         --// If all keys are pressed in order of timestamps then LastKeyPressed == true\
         --// Cant use tenary as I only want to set it to true so it doesnt get set to false when changes happen
         --// I need to know that everything was pressed, because last key can be triggered if the state is up/down
         if self:AreKeysPressedInOrder() then
-            self.IsKeyDown = true
+            self._IsKeyDown = true
             self.LastKeyPressed = true
         else
-            self.IsKeyDown = false
+            self._IsKeyDown = false
         end
     else
-        self.IsKeyDown = inputObject.IsKeyDown
+        self._IsKeyDown = inputObject._IsKeyDown
         --// Will set existing true to true when code above doesn't get ran as it already detected full press.
         self.LastKeyPressed = true
     end
 
-    if self.TargetPressedState[inputObject.IsKeyDown] and self.LastKeyPressed then
-        self.PressCounter += 1
+    if self.TargetPressedState[inputObject._IsKeyDown] and self.LastKeyPressed then
+        self._PressCounter += 1
         --// For return object to check if player if player is still holding key from other check
 
         self:CallCallbackFunctions(self:GenerateReturnObject(inputObject))
@@ -98,8 +95,8 @@ function actionObjectHolder:Trigger(inputObject: types.SerialInputObject)
         end
 
         self.LastKeyPressed = false
-    elseif self.IsSingleKey and self.TargetPressedState[inputObject.IsKeyDown] then
-        self.PressCounter += 1
+    elseif self._IsSingleKey and self.TargetPressedState[inputObject.IsKeyDown] then
+        self._PressCounter += 1
         --// For return object to check if player if player is still holding key from other check
 
         self:CallCallbackFunctions(self:GenerateReturnObject(inputObject))
@@ -108,13 +105,13 @@ end
 
 --// Funny :P
 function actionObjectHolder:CallCallbackFunctions(...)
-    for _, callbackFunction in self.CallbackFunctions do
+    for _, callbackFunction in self._CallbackFunctions do
         pcall(callbackFunction, ...)
     end
 end
 
 function actionObjectHolder:BindFunction(callbackFunction: () -> (), priority: number)
-    local callbackFunctions = self.CallbackFunctions
+    local callbackFunctions = self._CallbackFunctions
 
     if not priority then
         table.insert(callbackFunctions, callbackFunction)
@@ -124,8 +121,8 @@ function actionObjectHolder:BindFunction(callbackFunction: () -> (), priority: n
 
     local storedValue = callbackFunctions[priority]
 
-    if not storedValue then 
-        table.insert(self.CallbackFunctions, priority, callbackFunction)
+    if not storedValue then
+        table.insert(self._CallbackFunctions, priority, callbackFunction)
 
         return
     end
@@ -141,11 +138,8 @@ end
 
 function actionObjectModule:ValidateDataAndMerge(targetDataTemplate: types.ActionData, validatedDataTable: types.UserActionData)
     for key, value in validatedDataTable do
-        print(targetDataTemplate)
         local correctTypeof = typeof(targetDataTemplate[key])
         local recvTypeof = typeof(value)
-    
-        print(correctTypeof, key, value)
 
         if correctTypeof ~= recvTypeof and recvTypeof ~= nil then
             error(`[{key}] {correctTypeof} expected, got {recvTypeof}.`)
@@ -161,13 +155,21 @@ function actionObjectModule.New(_ActionData: types.UserActionData) : types.Actio
         actionObjectHolder
     )
 
+    --// SUUUPER IMPORTANT!! Even if I clone table at doing setmetatable it would only store refference to already existing table
+    --// You can imagine how long it took me to debug (it actually wasn't that hard, im just kinda... teehee)
+    for key, value in actionObject do
+        if typeof(value) == "table" then
+            actionObject[key] = table.clone(actionObject[key])
+        end
+    end
+
     actionObjectModule:ValidateDataAndMerge(actionObject, _ActionData)
 
     if #actionObject.KeyCodes == 0 then
         error("No keycodes provided.")
     end
 
-    actionObject.IsSingleKey = #actionObject.KeyCodes == 1
+    actionObject._IsSingleKey = #actionObject.KeyCodes == 1
 
     return actionObject
 end
